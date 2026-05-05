@@ -10,3 +10,4 @@ env/
 runs/
 logs/
 wandb/
+.DS_Store
