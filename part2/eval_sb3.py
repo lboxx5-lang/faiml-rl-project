@@ -3,11 +3,18 @@ import os
 
 import gymnasium as gym
 import numpy as np
-#from stable_baselines3 import 
 import panda_gym  # noqa: F401 - required so Panda envs are registered
+from stable_baselines3 import PPO, SAC
 
 
-def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool, env_type: str) -> None:
+def evaluate(
+    algo: str,
+    model_path: str,
+    n_episodes: int,
+    deterministic: bool,
+    render: bool,
+    env_type: str,
+) -> None:
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Model file not found: {model_path}. "
@@ -16,7 +23,11 @@ def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool
 
     render_mode = "human" if render else "rgb_array"
     env = gym.make("PandaPush-v3", render_mode=render_mode, type=env_type, reward_type="dense")
-    #TODO: load model here
+
+    if algo == "ppo":
+        model = PPO.load(model_path)
+    else:
+        model = SAC.load(model_path)
 
     episode_returns = []
     successes = []
@@ -28,7 +39,7 @@ def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool
         episode_return = 0.0
 
         while not (terminated or truncated):
-            action,_ = ... #TODO: get action from the model
+            action, _ = model.predict(obs, deterministic=deterministic)
             obs, reward, terminated, truncated, info = env.step(action)
             episode_return += float(reward)
 
@@ -55,12 +66,19 @@ def evaluate(model_path: str, n_episodes: int, deterministic: bool, render: bool
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate SAC on PandaPush-v3")
+    parser = argparse.ArgumentParser(description="Evaluate PPO/SAC on PandaPush-v3")
+    parser.add_argument(
+        "--algo",
+        type=str,
+        required=True,
+        choices=["ppo", "sac"],
+        help="Algorithm used to train the model",
+    )
     parser.add_argument(
         "--model-path",
         type=str,
         required=True,
-        help="Path to a PPO model zip file (e.g., ppo_panda_push.zip)",
+        help="Path to a saved SB3 model zip file",
     )
     parser.add_argument(
         "--episodes", 
@@ -90,6 +108,7 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     evaluate(
+        algo=args.algo,
         model_path=args.model_path,
         n_episodes=args.episodes,
         deterministic=not args.stochastic,
