@@ -53,7 +53,7 @@ def main():
         "--algorithm",
         type=str,
         default="reinforce",
-        choices=["reinforce", "reinforce_baseline"],
+        choices=["reinforce", "reinforce_baseline", "actor_critic"],
     )
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--eval-episodes", type=int, default=10)
@@ -75,13 +75,7 @@ def main():
 
     policy = Policy(state_space, action_space)
 
-    if args.algorithm == "reinforce":
-        agent = Agent(policy, use_baseline=False)
-    elif args.algorithm == "reinforce_baseline":
-        agent = Agent(policy, use_baseline=True)
-    else:
-        raise ValueError(f"Unknown algorithm: {args.algorithm}")
-
+    agent = Agent(policy, algorithm=args.algorithm)
     episode_returns = []
     episode_lengths = []
 

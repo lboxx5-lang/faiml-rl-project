@@ -121,8 +121,7 @@ class Agent(object):
         self.algorithm = algorithm
 
         # Constant baseline for REINFORCE with baseline.
-        self.baseline = 0.0
-        self.baseline_alpha = 0.9
+        self.baseline = 20.0
 
         # Weight of critic loss in Actor-Critic.
         self.critic_coef = 0.5
@@ -178,17 +177,10 @@ class Agent(object):
 
         elif self.algorithm == "reinforce_baseline":
             """
-            REINFORCE with constant baseline:
+            REINFORCE with fixed constant baseline k = 20:
 
-                loss = - sum_t log pi(a_t|s_t) (G_t - b)
+                loss = - sum_t log pi(a_t|s_t) (G_t - 20)
             """
-
-            episode_return = returns[0].item()
-
-            self.baseline = (
-                self.baseline_alpha * self.baseline
-                + (1.0 - self.baseline_alpha) * episode_return
-            )
 
             signal = returns - self.baseline
 
