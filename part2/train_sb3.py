@@ -86,18 +86,22 @@ def main() -> None:
             batch_size=64,
             gamma=0.99,
             seed=args.seed,
+            tensorboard_log="./tensorboard_logs/"
         )
     else:
         model = SAC(
             policy="MultiInputPolicy",
             env=env,
             verbose=1,
-            learning_rate=3e-4,
-            batch_size=256,
+            learning_rate=1e-4,
+            batch_size=512,
             gamma=0.99,
+            tau=0.005,
+            ent_coef="auto",
             train_freq=1,
             gradient_steps=1,
             seed=args.seed,
+            tensorboard_log="./tensorboard_logs/"
         )
 
     model.learn(total_timesteps=args.timesteps)
