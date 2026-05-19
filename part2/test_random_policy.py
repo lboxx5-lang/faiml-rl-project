@@ -20,8 +20,8 @@ def main():
         reward_type="dense",
     )
     
-    print('State space:', env.observation_space)  # state-space
-    print('Action space:', env.action_space)  # action-space
+    print('State space:', env.observation_space) 
+    print('Action space:', env.action_space) 
 
     n_episodes = 5
 

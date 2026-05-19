@@ -1,7 +1,7 @@
 import argparse
 
 import gymnasium as gym
-import panda_gym  # type: ignore[import-not-found]
+import panda_gym  
 from stable_baselines3 import PPO, SAC
 from rand_wrapper import RandomizationWrapper
 
@@ -60,7 +60,7 @@ def main() -> None:
     args = parse_args()
 
     if args.mass_min >= args.mass_max:
-        raise ValueError("mass-min must be strictly lower than mass-max")
+        raise ValueError("mass-min must be lower than mass-max")
 
     env = gym.make(
         "PandaPush-v3",

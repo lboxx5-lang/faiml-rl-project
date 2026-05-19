@@ -3,7 +3,7 @@ import os
 
 import gymnasium as gym
 import numpy as np
-import panda_gym  # noqa: F401 - required so Panda envs are registered
+import panda_gym  
 from stable_baselines3 import PPO, SAC
 
 
@@ -18,7 +18,6 @@ def evaluate(
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Model file not found: {model_path}. "
-            "Make sure you saved your trained model with model.save(...)."
         )
 
     render_mode = "human" if render else "rgb_array"

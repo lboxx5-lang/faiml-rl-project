@@ -31,9 +31,8 @@ class RandomizationWrapper(gym.Wrapper):
         self.success_window = deque(maxlen=20)
         self.adr_step = 0.1
 
-    # -----------------------
+
     # Mass Sampling
-    # -----------------------
 
     def _sample_mass(self):
 
@@ -52,7 +51,6 @@ class RandomizationWrapper(gym.Wrapper):
 
         success_rate = float(np.mean(self.success_window))
 
-        # Curriculum-like update: expand if easy, contract if too hard.
         if success_rate > 0.8:
             self.mass_min = max(self.mass_min_limit, self.mass_min - self.adr_step)
             self.mass_max = min(self.mass_max_limit, self.mass_max + self.adr_step)
@@ -75,9 +73,8 @@ class RandomizationWrapper(gym.Wrapper):
 
         return obs, reward, terminated, truncated, info
 
-    # -----------------------
+
     # Reset
-    # -----------------------
 
     def reset(self, **kwargs):
 
