@@ -64,7 +64,6 @@ def main() -> None:
 
     env = gym.make(
         "PandaPush-v3",
-        render_mode="rgb_array",
         type=args.env_type,
         reward_type="dense",
     )
