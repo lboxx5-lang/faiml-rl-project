@@ -92,10 +92,10 @@ def main() -> None:
             policy="MultiInputPolicy",
             env=env,
             verbose=1,
-            learning_rate=1e-4,
-            batch_size=512,
-            gamma=0.99,
-            tau=0.005,
+            learning_rate=3e-4, 
+            batch_size=256,      
+            gamma=0.95,          
+            tau=0.01,            
             ent_coef="auto",
             train_freq=1,
             gradient_steps=1,
@@ -106,8 +106,8 @@ def main() -> None:
     model.learn(total_timesteps=args.timesteps)
 
     save_name = (
-        f"{args.algo}_push_{args.sampling_strategy}_{args.env_type}_"
-        f"{args.timesteps // 1000}k_seed{args.seed}"
+        f"tuned_models/{args.algo}_push_{args.sampling_strategy}_{args.env_type}_"
+        f"{args.timesteps // 1000}k_tuned_seed{args.seed}"
     )
     model.save(save_name)
     print(f"Saved model: {save_name}.zip")
