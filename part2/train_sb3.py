@@ -83,7 +83,9 @@ def main() -> None:
             learning_rate=3e-4,
             n_steps=2048,
             batch_size=64,
+            n_epochs=10,
             gamma=0.99,
+            ent_coef=0.01,
             seed=args.seed,
             tensorboard_log="./tensorboard_logs/"
         )

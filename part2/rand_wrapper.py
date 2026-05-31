@@ -22,14 +22,18 @@ class RandomizationWrapper(gym.Wrapper):
         # global limits
         self.mass_min_limit, self.mass_max_limit = mass_range
 
-        # active range (for UDR this stays fixed, for ADR this is adapted)
-        self.mass_min = float(self.mass_min_limit)
-        self.mass_max = float(self.mass_max_limit)
+        if self.mode == "adr":
+            self.mass_min = 1.0 
+            self.mass_max = 1.0
+        else:
+            self.mass_min = float(self.mass_min_limit)
+            self.mass_max = float(self.mass_max_limit)
+
         self.last_sample_type = "none"
 
-        # ADR bookkeeping
+        # setup ADR
         self.success_window = deque(maxlen=20)
-        self.adr_step = 0.1
+        self.adr_step = 0.25
 
 
     # Mass Sampling
@@ -43,7 +47,7 @@ class RandomizationWrapper(gym.Wrapper):
             self.last_sample_type = "uniform"
             return float(np.random.uniform(self.mass_min, self.mass_max))
         else:
-            raise NotImplementedError(f"Sampling strategy '{self.mode}' is not implemented yet.")
+            raise NotImplementedError(f"Mode '{self.mode}' not supported.")
 
     def _update_adr_range(self):
         if len(self.success_window) < self.success_window.maxlen:
