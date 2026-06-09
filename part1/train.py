@@ -1,155 +1,147 @@
-"""Sample script for training a control policy on the Hopper environment.
+"""Training loop for REINFORCE and Actor-Critic on Hopper-v4.
 
-Training loop for:
-- REINFORCE without baseline
-- REINFORCE with constant baseline
+One on-policy update per episode. Hyperparameters are passed via CLI.
 
-Actor-Critic can be added later using the same structure.
+Examples:
+    python3 train.py --algorithm reinforce --baseline 0.0  --n-episodes 10000
+    python3 train.py --algorithm reinforce --baseline 10.0 --n-episodes 10000
+    python3 train.py --algorithm ac                        --n-episodes 10000
+
+Outputs (auto-named from hyperparameters):
+    returns_<tag>.csv   per-episode return, length, elapsed time
+    model_<tag>.pt      final policy weights
 """
 
 import argparse
+import csv
+import os
 import time
 
 import gymnasium as gym
 import numpy as np
 import torch
 
-from agent import Policy, Agent
+from agent import Agent, Policy
 
 
-def evaluate_policy(env, agent, n_episodes=10):
-    returns = []
-
-    for _ in range(n_episodes):
-        state, info = env.reset()
-        done = False
-        episode_return = 0.0
-
-        while not done:
-            action, _ = agent.get_action(state, evaluation=True)
-
-            action_np = action.detach().cpu().numpy()
-            action_np = np.clip(
-                action_np,
-                env.action_space.low,
-                env.action_space.high,
-            )
-
-            state, reward, terminated, truncated, info = env.step(action_np)
-            done = terminated or truncated
-
-            episode_return += reward
-
-        returns.append(episode_return)
-
-    return float(np.mean(returns)), float(np.std(returns))
-
-
-def main():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--env", type=str, default="Hopper-v4")
-    parser.add_argument(
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument(
         "--algorithm",
         type=str,
         default="reinforce",
-        choices=["reinforce", "reinforce_baseline", "actor_critic"],
+        choices=["reinforce", "ac"],
+        help="'reinforce' (TASK 2) or 'ac' (TASK 3)",
     )
-    parser.add_argument("--episodes", type=int, default=1000)
-    parser.add_argument("--eval-episodes", type=int, default=10)
-    parser.add_argument("--log-interval", type=int, default=10)
-    parser.add_argument("--seed", type=int, default=0)
+    p.add_argument("--n-episodes", type=int, default=10000)
+    p.add_argument("--print-every", type=int, default=100)
+    p.add_argument(
+        "--baseline",
+        type=float,
+        default=0.0,
+        help="Constant baseline for REINFORCE (0.0 = none). Ignored in AC.",
+    )
+    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--save",
+        type=str,
+        default=None,
+        help="Checkpoint path. If None, derived from hyperparameters.",
+    )
+    p.add_argument("--device", type=str, default="cpu")
+    return p.parse_args()
 
-    args = parser.parse_args()
 
+def main():
+    args = parse_args()
+
+    # Seed everything for reproducibility.
+    env = gym.make("Hopper-v4")
+    env.reset(seed=args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    env = gym.make(args.env)
+    obs_dim = env.observation_space.shape[-1]
+    act_dim = env.action_space.shape[-1]
 
-    print("State space:", env.observation_space)
-    print("Action space:", env.action_space)
+    # Build network and agent.
+    policy = Policy(obs_dim, act_dim)
+    agent = Agent(
+        policy, device=args.device, baseline=args.baseline, algorithm=args.algorithm
+    )
 
-    state_space = env.observation_space.shape[0]
-    action_space = env.action_space.shape[0]
+    # Override Adam learning rate (Agent uses 1e-3 by default).
+    for g in agent.optimizer.param_groups:
+        g["lr"] = args.lr
 
-    policy = Policy(state_space, action_space)
+    # File names derived from hyperparameters, so runs do not overwrite each other.
+    tag = f"{args.algorithm}_b{args.baseline}_s{args.seed}"
+    csv_path = f"returns_{tag}.csv"
+    save_path = args.save if args.save is not None else f"model_{tag}.pt"
 
-    agent = Agent(policy, algorithm=args.algorithm)
-    episode_returns = []
-    episode_lengths = []
+    print(
+        f"Training {args.algorithm.upper()} on Hopper-v4 | "
+        f"baseline={args.baseline} | lr={args.lr} | seed={args.seed}"
+    )
+    print(f"obs_dim={obs_dim}  act_dim={act_dim}")
+    print(f"Outputs: {csv_path}  |  {save_path}")
 
-    start_time = time.time()
+    returns_history = []
+    lengths_history = []
+    times_history = []
+    t0 = time.time()
 
-    for episode in range(args.episodes):
-        state, info = env.reset(seed=args.seed + episode)
-
+    # ---- Main loop: one episode per iteration, one update per episode ----
+    for ep in range(args.n_episodes):
+        state, _ = env.reset()
         done = False
-        episode_return = 0.0
-        episode_length = 0
+        ep_return = 0.0
+        ep_len = 0
 
+        # Roll out one full episode.
         while not done:
-            action, action_log_prob = agent.get_action(state, evaluation=False)
-
+            action, log_prob = agent.get_action(state)
             action_np = action.detach().cpu().numpy()
-            action_np = np.clip(
-                action_np,
-                env.action_space.low,
-                env.action_space.high,
-            )
-
-            next_state, reward, terminated, truncated, info = env.step(action_np)
+            next_state, reward, terminated, truncated, _ = env.step(action_np)
             done = terminated or truncated
-
-            agent.store_outcome(
-                state=state,
-                next_state=next_state,
-                action_log_prob=action_log_prob,
-                reward=reward,
-                done=done,
-            )
-
+            agent.store_outcome(state, next_state, log_prob, reward, done)
             state = next_state
-            episode_return += reward
-            episode_length += 1
+            ep_return += reward
+            ep_len += 1
 
-        loss = agent.update_policy()
+        # One gradient step using the just-collected episode.
+        agent.update_policy()
 
-        episode_returns.append(episode_return)
-        episode_lengths.append(episode_length)
+        returns_history.append(ep_return)
+        lengths_history.append(ep_len)
+        times_history.append(time.time() - t0)
 
-        if (episode + 1) % args.log_interval == 0:
-            avg_return = np.mean(episode_returns[-args.log_interval :])
-            avg_length = np.mean(episode_lengths[-args.log_interval :])
-            elapsed = time.time() - start_time
-
+        # Print rolling stats every K episodes.
+        if (ep + 1) % args.print_every == 0:
+            w = args.print_every
+            avg_r = float(np.mean(returns_history[-w:]))
+            std_r = float(np.std(returns_history[-w:]))
+            avg_l = float(np.mean(lengths_history[-w:]))
             print(
-                f"Episode {episode + 1:5d} | "
-                f"Return: {episode_return:9.2f} | "
-                f"Avg return: {avg_return:9.2f} | "
-                f"Avg length: {avg_length:7.1f} | "
-                f"Loss: {loss:10.2f} | "
-                f"Elapsed: {elapsed:7.1f}s"
+                f"Ep {ep+1:6d} | ret={avg_r:7.2f} (std {std_r:6.2f}) | "
+                f"len={avg_l:5.1f} | elapsed {times_history[-1]:6.1f}s"
             )
 
-    eval_mean, eval_std = evaluate_policy(env, agent, n_episodes=args.eval_episodes)
+    # Save weights and per-episode CSV.
+    torch.save(policy.state_dict(), save_path)
+    print(f"Saved model to {os.path.abspath(save_path)}")
 
-    print("\nFinal evaluation")
-    print(f"Algorithm: {args.algorithm}")
-    print(f"Evaluation episodes: {args.eval_episodes}")
-    print(f"Mean return: {eval_mean:.2f}")
-    print(f"Std return: {eval_std:.2f}")
+    with open(csv_path, "w", newline="") as f:
+        out = csv.writer(f)
+        out.writerow(["episode", "return", "length", "elapsed_s"])
+        for i, (r, l, t) in enumerate(
+            zip(returns_history, lengths_history, times_history)
+        ):
+            out.writerow([i, r, l, t])
+    print(f"Saved returns to {os.path.abspath(csv_path)}")
 
     env.close()
-
-    returns_file = f"returns_{args.algorithm}.npy"
-    model_file = f"policy_{args.algorithm}.pt"
-
-    np.save(returns_file, np.array(episode_returns))
-    torch.save(policy.state_dict(), model_file)
-
-    print(f"\nSaved {returns_file}")
-    print(f"Saved {model_file}")
 
 
 if __name__ == "__main__":
